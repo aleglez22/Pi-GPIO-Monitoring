@@ -1,0 +1,212 @@
+{% extends "layout.jinja" %}
+
+{% block layout_js %}
+<script type="text/javascript" src="{{ url_for('support.static', filename='js/support.js') }}"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<script
+  src="https://code.jquery.com/jquery-3.3.1.js"
+  integrity="sha256-2Kok7MbOyxpgUVvAk/HJ2jigOSYS2auK4Pfzbm7uH60="
+  crossorigin="anonymous"></script>
+
+{% endblock %}
+
+{% block layout_css %}
+<style type="text/css">
+    .title{
+        display:inline-block;
+        width:200px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>GPIO</h2>
+
+<p></p>
+
+<div class="container-fluid">
+	<div class="row">
+		<div class="col-md-12">
+		
+			<div class="row">
+				<div class="col-md-12" align="center">
+					<h3>GPIO Information</h3>
+					<div class="btn-group btn-group-lg" role="group">
+						 
+						<button class="btn btn-success" type="button" onclick="window.location.href='{{url_for('gpioController.clearCounters')}}'">
+							Clear
+						</button> 
+						<button class="btn btn-success" type="button" onclick="window.location.href='{{url_for('gpioController.export')}}'">
+							Export
+						</button> 
+						<button class="btn btn-success" type="button" onclick="setAutoUpdate()">
+							Auto Update
+						</button>
+						<input type="text" id="txt_interval" oninput="setInterval()" style="font-size:30px" > 
+						
+					</div>
+				</div>
+			</div>
+			<table class="table">
+				<thead>
+					<tr>
+						<th>
+							#
+						</th>
+						<th>
+							Monitor
+						</th>
+						<th>
+							Description
+						</th>
+						<th align="left">
+							Current State
+						</th>
+						<th>
+							History
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for pin in pins %}
+					<form id="form_control{{pin.id}}" method="post" action="{{ url_for('gpioController.gpio_press', pinNumber=pin.gpionumber) }}">
+						{% if pin.enabled == 0 %}
+						<tr >
+						{% elif pin.enabled == 1  %}
+						<tr  bgcolor="#080909">
+						{% endif %}
+							<td>
+								{{pin.gpionumber}}
+							</td>
+							<td>
+								<input type="hidden" id="txt_enabled{{pin.id}}" name="txt_enabled">
+								{% if pin.enabled == 1 %}
+								<button type="button" class="btn btn-success btn-sm" onclick="sendEnabDisab(this.form,0,{{pin.id}});">
+									Enable
+								</button>
+								{% else %}
+								<button type="button" class="btn btn-danger btn-sm" onclick="sendEnabDisab(this.form,1,{{pin.id}});">
+									Disable
+								</button>
+								{% endif %}
+							</td>
+							<td>
+								{% if pin.enabled == 1 %}
+								<input type="text" name="txtDescription" id="txtDescription" readonly value="{{pin.description}}">
+								{% else %}
+								<input type="text" name="txtDescription" id="txtDescription"  value="{{pin.description}}">
+								{% endif %}
+							</td>
+							<td align="right">
+							
+							{% if pin.enabled == 0 %}
+								{% if pin.state == 0 %}
+									<i id= "state{{pin.gpionumber}}" class="fa fa-circle" style="font-size:30px;color:green"></i>
+								{% else %}
+									<i id= "state{{pin.gpionumber}}" class="fa fa-circle" style="font-size:30px;color:red"></i>
+								{% endif %}
+							{% else %}
+									<i class="fa fa-circle" style="font-size:30px;color:yellow"></i>
+							{% endif %}
+
+							</td>
+							<td>
+							    <div id="count{{pin.gpionumber}}">
+								{{pin.count}}								
+								</div>
+							</td>
+						</tr>
+					</form>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript"> 
+
+var interval;
+interval = document.getElementById("txt_interval").value;
+
+function setAutoUpdate(value) {
+
+    var auto_update = localStorage['autoUpdate'] || 'defaultValue';
+
+    if (auto_update == 'defaultValue') {
+        localStorage['autoUpdate'] = 0;
+    }
+    var auto_update = localStorage['autoUpdate'] || 'defaultValue';
+    if (auto_update == 0) {
+        localStorage['autoUpdate'] = 1;
+        document.getElementById("txt_interval").style.display = 'inline';
+    } else if (auto_update == 1) {
+        localStorage['autoUpdate'] = 0;
+        document.getElementById("txt_interval").style.display = 'block';
+    }
+    if (auto_update == 1) {
+        setInterval(updateInfo, interval);
+    }
+}
+
+
+
+function setInterval() {
+    localStorage['updateInterval'] = document.getElementById("txt_interval").value;
+    interval = localStorage['updateInterval'] || 'defaultValue';
+}
+
+
+function updateInfo() {
+    $.ajax({
+        url: '/gpio/statusAndCount',
+        dataType: 'json',
+        success: function (data) {
+            data.forEach(function (pin) {
+                document.getElementById("count" + pin.gpionumber).innerHTML = pin.count;
+                if (pin.state == 0) {
+                    document.getElementById("state" + pin.gpionumber).style.color = "green";
+                }
+                if (pin.state == 1) {
+                    document.getElementById("state" + pin.gpionumber).style.color = "red";
+                }
+            });
+        }
+    });
+}
+
+
+function sendEnabDisab(form, enabled, pinId) {
+    txtEnabDisab = document.getElementById("txt_enabled" + pinId);
+    if (enabled == 1) {
+        txtEnabDisab.value = 1;
+    } else {
+        txtEnabDisab.value = 0;
+    }
+    form.submit();
+}
+
+
+var enabledPins = [];
+{% for pin in pins %}
+	{% if pin.enabled == 0 %}
+		enabledPins.push({{ pin.id }});
+	{% endif %}
+{% endfor %}
+
+enabledPins.forEach(function (pinId) {
+    txtEnabDisab = document.getElementById("txt_enabled" + pinId);
+    txtEnabDisab.value = 0;
+});
+
+//console.log(enabledPins);
+function submitAllForms() {
+    enabledPins.forEach(function (pinId) {
+        document.getElementById("form_control" + pinId).submit();
+    });
+}
+
+</script>
+
+
+{% endblock %}
